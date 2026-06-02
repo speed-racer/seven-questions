@@ -296,8 +296,6 @@ export const submitAnswer = createServerFn({ method: "POST" })
     if (room.phase !== "answer") throw new Error("Not accepting answers right now");
     if (room.current_question !== data.questionIndex)
       throw new Error("Wrong question — refresh");
-    if (room.current_mediator_id === data.playerId)
-      throw new Error("Mediator does not answer");
 
     const { error } = await supabaseAdmin.from("answers").upsert(
       {
@@ -361,7 +359,7 @@ export const advanceQuestion = createServerFn({ method: "POST" })
       .from("room_players")
       .select("id")
       .eq("room_id", data.roomId);
-    const nonMediators = (players ?? []).filter((p) => p.id !== room.current_mediator_id);
+    const allPlayers = players ?? [];
 
     const { data: ans } = await supabaseAdmin
       .from("answers")
@@ -370,7 +368,7 @@ export const advanceQuestion = createServerFn({ method: "POST" })
       .eq("round_seq", room.round_seq)
       .eq("question_index", room.current_question);
     const answered = new Set((ans ?? []).map((a) => a.author_id));
-    const allAnswered = nonMediators.every((p) => answered.has(p.id));
+    const allAnswered = allPlayers.every((p) => answered.has(p.id));
     if (!allAnswered) throw new Error("Waiting on players");
 
     if (room.current_question < TOTAL_QUESTIONS - 1) {
@@ -416,7 +414,6 @@ export const advanceQuestion = createServerFn({ method: "POST" })
       .from("room_players")
       .select("id, player_number")
       .eq("room_id", data.roomId)
-      .neq("id", room.current_mediator_id)
       .order("player_number", { ascending: true })
       .limit(1)
       .maybeSingle();
