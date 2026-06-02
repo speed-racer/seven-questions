@@ -181,6 +181,7 @@ function TopBar({ room }: { room: Room }) {
 // -------------------- LOBBY --------------------
 function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; isMediator: boolean }) {
   const start = useServerFn(startRound);
+  const toggleTimer = useServerFn(setTimerEnabled);
   const [busy, setBusy] = useState(false);
   const canStart = players.length >= 4;
 
@@ -192,6 +193,16 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleToggleTimer() {
+    try {
+      await toggleTimer({
+        data: { playerId: getPlayerId(), roomId: room.id, enabled: !room.timer_enabled },
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   }
 
@@ -225,6 +236,33 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       </div>
 
       <div className="mt-auto pt-4">
+        <div className="mb-3 flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
+          <div>
+            <div className="text-sm font-medium">Per-question timer</div>
+            <div className="text-xs text-muted-foreground">
+              {room.timer_enabled ? "2:00 per question, auto-submits" : "Off"}
+            </div>
+          </div>
+          {isMediator ? (
+            <button
+              onClick={handleToggleTimer}
+              className={`relative h-7 w-12 rounded-full transition ${
+                room.timer_enabled ? "bg-primary" : "bg-secondary"
+              }`}
+              aria-pressed={room.timer_enabled}
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
+                  room.timer_enabled ? "left-6" : "left-1"
+                }`}
+              />
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {room.timer_enabled ? "On" : "Off"}
+            </span>
+          )}
+        </div>
         {isMediator ? (
           <button
             onClick={handleStart}
