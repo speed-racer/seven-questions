@@ -42,6 +42,9 @@ export const createRoom = createServerFn({ method: "POST" })
     }
     if (!roomId) throw new Error("Could not allocate room code");
 
+    // A player can only be in one room at a time; clear any prior membership.
+    await supabaseAdmin.from("room_players").delete().eq("id", data.playerId);
+
     // insert creator as player 1
     const { error: pErr } = await supabaseAdmin.from("room_players").insert({
       id: data.playerId,
@@ -93,6 +96,13 @@ export const joinRoom = createServerFn({ method: "POST" })
     if (existing) return { roomId: room.id, code: room.code };
 
     if (room.phase !== "lobby") throw new Error("Round in progress — wait for the next round");
+
+    // Remove any membership in OTHER rooms for this player.
+    await supabaseAdmin
+      .from("room_players")
+      .delete()
+      .eq("id", data.playerId)
+      .neq("room_id", room.id);
 
     // assign next player number
     const { data: maxRow } = await supabaseAdmin
