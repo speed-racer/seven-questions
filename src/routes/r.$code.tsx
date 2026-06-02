@@ -332,10 +332,9 @@ function AnswerPhase({
   }, [room.current_question]);
 
   const qIdx = room.current_question;
-  const nonMediators = players.filter((p) => p.id !== room.current_mediator_id);
   const submittedAuthorIds = new Set(answers.filter((a) => a.question_index === qIdx).map((a) => a.author_id));
   const mySubmitted = submittedAuthorIds.has(me.id);
-  const allSubmitted = nonMediators.every((p) => submittedAuthorIds.has(p.id));
+  const allSubmitted = players.every((p) => submittedAuthorIds.has(p.id));
 
   // ---- Timer ----
   const timerActive = room.timer_enabled && !!room.question_started_at;
@@ -351,9 +350,9 @@ function AnswerPhase({
     return () => clearInterval(t);
   }, [timerActive]);
 
-  // Auto-submit my answer if I'm a non-mediator who hasn't submitted when timer expires.
+  // Auto-submit my answer if I haven't submitted when the timer expires.
   useEffect(() => {
-    if (!expired || isMediator || mySubmitted || busy) return;
+    if (!expired || mySubmitted || busy) return;
     const payload = text.trim() || "(no answer)";
     setBusy(true);
     submit({
@@ -365,7 +364,7 @@ function AnswerPhase({
         if (!/wrong question|not accepting/i.test(msg)) toast.error(msg);
       })
       .finally(() => setBusy(false));
-  }, [expired, isMediator, mySubmitted, busy, text, submit, room.id, qIdx]);
+  }, [expired, mySubmitted, busy, text, submit, room.id, qIdx]);
 
   // Mediator auto-advances shortly after timer expires once everyone has submitted.
   useEffect(() => {
