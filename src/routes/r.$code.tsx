@@ -445,10 +445,34 @@ function AnswerPhase({
       {isMediator ? (
         <div className="flex flex-col gap-4 flex-1">
           <p className="text-sm text-muted-foreground">
-            You're the mediator. Read the question aloud. Players answer on their devices.
+            You're the mediator. Read the question aloud, then answer it yourself too.
           </p>
+
+          {!mySubmitted ? (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={500}
+                placeholder="Your answer…"
+                rows={3}
+                className="w-full rounded-xl bg-input border border-border px-4 py-3 outline-none focus:border-primary resize-none"
+              />
+              <button
+                disabled={!text.trim() || busy}
+                className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-semibold disabled:opacity-50"
+              >
+                {busy ? "Submitting…" : "Submit my answer"}
+              </button>
+            </form>
+          ) : (
+            <div className="rounded-xl bg-accent/10 border border-accent/30 px-4 py-3 text-sm">
+              ✓ Your answer is in.
+            </div>
+          )}
+
           <ul className="flex flex-col gap-2">
-            {nonMediators.map((p) => {
+            {players.map((p) => {
               const done = submittedAuthorIds.has(p.id);
               return (
                 <li
@@ -458,7 +482,10 @@ function AnswerPhase({
                   <span className="w-7 h-7 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-sm font-bold">
                     {p.player_number}
                   </span>
-                  <span className="flex-1">{p.display_name}</span>
+                  <span className="flex-1">
+                    {p.display_name}
+                    {p.id === me.id && <span className="text-xs text-muted-foreground"> (you)</span>}
+                  </span>
                   <span className={`text-xs ${done ? "text-accent" : "text-muted-foreground"}`}>
                     {done ? "✓ Answered" : "Waiting…"}
                   </span>
@@ -484,7 +511,7 @@ function AnswerPhase({
                   : "Waiting for answers…"
                 : allSubmitted
                   ? "Next question →"
-                  : `Waiting (${submittedAuthorIds.size}/${nonMediators.length})`}
+                  : `Waiting (${submittedAuthorIds.size}/${players.length})`}
             </button>
           </div>
         </div>
@@ -493,7 +520,7 @@ function AnswerPhase({
           <div className="display text-4xl text-accent">✓</div>
           <p className="text-lg">Answer submitted!</p>
           <p className="text-sm text-muted-foreground">
-            Waiting for the mediator… ({submittedAuthorIds.size}/{nonMediators.length} answered)
+            Waiting for the mediator… ({submittedAuthorIds.size}/{players.length} answered)
           </p>
         </div>
       ) : (
