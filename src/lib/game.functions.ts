@@ -190,6 +190,89 @@ export const setTimerEnabled = createServerFn({ method: "POST" })
 
 export const TIMER_DURATION_SECONDS = TIMER_SECONDS;
 
+// ---------------- DEV: add a ghost player (testing) ----------------
+export const addGhostPlayer = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ roomId: z.string().uuid(), name: z.string().min(1).max(40).optional() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: room } = await supabaseAdmin
+      .from("rooms")
+      .select("id, phase")
+      .eq("id", data.roomId)
+      .single();
+    if (!room) throw new Error("Room not found");
+    if (room.phase !== "lobby") throw new Error("Can only add ghosts in the lobby");
+
+    const { data: maxRow } = await supabaseAdmin
+      .from("room_players")
+      .select("player_number")
+      .eq("room_id", data.roomId)
+      .order("player_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextNumber = (maxRow?.player_number ?? 0) + 1;
+    const name = data.name?.trim() || `Ghost ${nextNumber}`;
+
+    const { error } = await supabaseAdmin.from("room_players").insert({
+      room_id: data.roomId,
+      display_name: name,
+      player_number: nextNumber,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------------- DEV: auto-answer for all ghost (non-real) players ----------------
+export const ghostAnswerCurrent = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ realPlayerId: z.string().uuid(), roomId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: room } = await supabaseAdmin
+      .from("rooms")
+      .select("id, phase, current_question, current_mediator_id, round_seq")
+      .eq("id", data.roomId)
+      .single();
+    if (!room) throw new Error("Room not found");
+    if (room.phase !== "answer") throw new Error("Not in answer phase");
+
+    const { data: players } = await supabaseAdmin
+      .from("room_players")
+      .select("id, display_name")
+      .eq("room_id", data.roomId);
+
+    // ghosts = every player except the real human and the mediator
+    const ghosts = (players ?? []).filter(
+      (p) => p.id !== data.realPlayerId && p.id !== room.current_mediator_id,
+    );
+    if (ghosts.length === 0) return { ok: true, inserted: 0 };
+
+    const samples = [
+      "A wandering bard",
+      "To the moonlit forest",
+      "Searching for stories",
+      "An old wise owl",
+      "Beware the morning fog",
+      "I shall remember always",
+      "And so the legend began",
+    ];
+    const rows = ghosts.map((g) => ({
+      room_id: data.roomId,
+      round_seq: room.round_seq,
+      question_index: room.current_question,
+      author_id: g.id,
+      text: `${g.display_name}: ${samples[room.current_question] ?? "..."}`,
+    }));
+    const { error } = await supabaseAdmin
+      .from("answers")
+      .upsert(rows, { onConflict: "room_id,round_seq,question_index,author_id" });
+    if (error) throw new Error(error.message);
+    return { ok: true, inserted: rows.length };
+  });
+
 // ---------------- Submit answer ----------------
 export const submitAnswer = createServerFn({ method: "POST" })
   .inputValidator((input) =>
