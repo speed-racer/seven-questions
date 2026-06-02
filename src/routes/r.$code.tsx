@@ -332,10 +332,9 @@ function AnswerPhase({
   }, [room.current_question]);
 
   const qIdx = room.current_question;
-  const nonMediators = players.filter((p) => p.id !== room.current_mediator_id);
   const submittedAuthorIds = new Set(answers.filter((a) => a.question_index === qIdx).map((a) => a.author_id));
   const mySubmitted = submittedAuthorIds.has(me.id);
-  const allSubmitted = nonMediators.every((p) => submittedAuthorIds.has(p.id));
+  const allSubmitted = players.every((p) => submittedAuthorIds.has(p.id));
 
   // ---- Timer ----
   const timerActive = room.timer_enabled && !!room.question_started_at;
@@ -351,9 +350,9 @@ function AnswerPhase({
     return () => clearInterval(t);
   }, [timerActive]);
 
-  // Auto-submit my answer if I'm a non-mediator who hasn't submitted when timer expires.
+  // Auto-submit my answer if I haven't submitted when the timer expires.
   useEffect(() => {
-    if (!expired || isMediator || mySubmitted || busy) return;
+    if (!expired || mySubmitted || busy) return;
     const payload = text.trim() || "(no answer)";
     setBusy(true);
     submit({
@@ -365,7 +364,7 @@ function AnswerPhase({
         if (!/wrong question|not accepting/i.test(msg)) toast.error(msg);
       })
       .finally(() => setBusy(false));
-  }, [expired, isMediator, mySubmitted, busy, text, submit, room.id, qIdx]);
+  }, [expired, mySubmitted, busy, text, submit, room.id, qIdx]);
 
   // Mediator auto-advances shortly after timer expires once everyone has submitted.
   useEffect(() => {
@@ -446,10 +445,34 @@ function AnswerPhase({
       {isMediator ? (
         <div className="flex flex-col gap-4 flex-1">
           <p className="text-sm text-muted-foreground">
-            You're the mediator. Read the question aloud. Players answer on their devices.
+            You're the mediator. Read the question aloud, then answer it yourself too.
           </p>
+
+          {!mySubmitted ? (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={500}
+                placeholder="Your answer…"
+                rows={3}
+                className="w-full rounded-xl bg-input border border-border px-4 py-3 outline-none focus:border-primary resize-none"
+              />
+              <button
+                disabled={!text.trim() || busy}
+                className="w-full rounded-xl bg-primary text-primary-foreground py-3 font-semibold disabled:opacity-50"
+              >
+                {busy ? "Submitting…" : "Submit my answer"}
+              </button>
+            </form>
+          ) : (
+            <div className="rounded-xl bg-accent/10 border border-accent/30 px-4 py-3 text-sm">
+              ✓ Your answer is in.
+            </div>
+          )}
+
           <ul className="flex flex-col gap-2">
-            {nonMediators.map((p) => {
+            {players.map((p) => {
               const done = submittedAuthorIds.has(p.id);
               return (
                 <li
@@ -459,7 +482,10 @@ function AnswerPhase({
                   <span className="w-7 h-7 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-sm font-bold">
                     {p.player_number}
                   </span>
-                  <span className="flex-1">{p.display_name}</span>
+                  <span className="flex-1">
+                    {p.display_name}
+                    {p.id === me.id && <span className="text-xs text-muted-foreground"> (you)</span>}
+                  </span>
                   <span className={`text-xs ${done ? "text-accent" : "text-muted-foreground"}`}>
                     {done ? "✓ Answered" : "Waiting…"}
                   </span>
@@ -485,7 +511,7 @@ function AnswerPhase({
                   : "Waiting for answers…"
                 : allSubmitted
                   ? "Next question →"
-                  : `Waiting (${submittedAuthorIds.size}/${nonMediators.length})`}
+                  : `Waiting (${submittedAuthorIds.size}/${players.length})`}
             </button>
           </div>
         </div>
@@ -494,7 +520,7 @@ function AnswerPhase({
           <div className="display text-4xl text-accent">✓</div>
           <p className="text-lg">Answer submitted!</p>
           <p className="text-sm text-muted-foreground">
-            Waiting for the mediator… ({submittedAuthorIds.size}/{nonMediators.length} answered)
+            Waiting for the mediator… ({submittedAuthorIds.size}/{players.length} answered)
           </p>
         </div>
       ) : (
@@ -560,7 +586,7 @@ function RevealPhase({
   }, [answers, room.reveal_player_id]);
 
   const isRevealPlayer = revealPlayer?.id === me.id;
-  const nonMediators = players.filter((p) => p.id !== room.current_mediator_id);
+  const revealTargets = players;
 
   async function pickPlayer(targetId: string) {
     setBusy(true);
@@ -614,7 +640,7 @@ function RevealPhase({
         <div className="bg-card border border-border rounded-xl p-3">
           <div className="text-xs text-muted-foreground mb-2">Choose who reveals next</div>
           <div className="grid grid-cols-2 gap-2">
-            {nonMediators.map((p) => (
+            {revealTargets.map((p) => (
               <button
                 key={p.id}
                 onClick={() => pickPlayer(p.id)}
