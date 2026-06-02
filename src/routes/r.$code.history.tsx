@@ -34,7 +34,7 @@ function HistoryPage() {
         .select("*")
         .eq("room_id", room.id)
         .order("saved_at", { ascending: false });
-      setRounds((data as SavedRound[]) ?? []);
+      setRounds(((data as unknown) as SavedRound[]) ?? []);
     })();
   }, [code]);
 
