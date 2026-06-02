@@ -184,6 +184,7 @@ function TopBar({ room }: { room: Room }) {
 function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; isMediator: boolean }) {
   const start = useServerFn(startRound);
   const toggleTimer = useServerFn(setTimerEnabled);
+  const addGhost = useServerFn(addGhostPlayer);
   const [busy, setBusy] = useState(false);
   const canStart = players.length >= 4;
 
@@ -203,6 +204,14 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       await toggleTimer({
         data: { playerId: getPlayerId(), roomId: room.id, enabled: !room.timer_enabled },
       });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function handleAddGhost() {
+    try {
+      await addGhost({ data: { roomId: room.id } });
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -238,6 +247,19 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       </div>
 
       <div className="mt-auto pt-4">
+        <div className="mb-3 rounded-xl border border-dashed border-border bg-card/50 px-4 py-3">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Testing</div>
+          <button
+            onClick={handleAddGhost}
+            className="w-full rounded-lg bg-secondary text-secondary-foreground py-2 text-sm font-medium"
+          >
+            + Add ghost player
+          </button>
+          <div className="text-xs text-muted-foreground mt-2">
+            Ghosts auto-answer for you. Need 4+ players to start.
+          </div>
+        </div>
+
         <div className="mb-3 flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
           <div>
             <div className="text-sm font-medium">Per-question timer</div>
