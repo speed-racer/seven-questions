@@ -244,10 +244,8 @@ export const ghostAnswerCurrent = createServerFn({ method: "POST" })
       .select("id, display_name")
       .eq("room_id", data.roomId);
 
-    // ghosts = every player except the real human and the mediator
-    const ghosts = (players ?? []).filter(
-      (p) => p.id !== data.realPlayerId && p.id !== room.current_mediator_id,
-    );
+    // ghosts = every player except the real human (mediator may now answer too)
+    const ghosts = (players ?? []).filter((p) => p.id !== data.realPlayerId);
     if (ghosts.length === 0) return { ok: true, inserted: 0 };
 
     const samples = [
