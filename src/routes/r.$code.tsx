@@ -586,7 +586,7 @@ function RevealPhase({
   }, [answers, room.reveal_player_id]);
 
   const isRevealPlayer = revealPlayer?.id === me.id;
-  const nonMediators = players.filter((p) => p.id !== room.current_mediator_id);
+  const revealTargets = players;
 
   async function pickPlayer(targetId: string) {
     setBusy(true);
@@ -640,7 +640,7 @@ function RevealPhase({
         <div className="bg-card border border-border rounded-xl p-3">
           <div className="text-xs text-muted-foreground mb-2">Choose who reveals next</div>
           <div className="grid grid-cols-2 gap-2">
-            {nonMediators.map((p) => (
+            {revealTargets.map((p) => (
               <button
                 key={p.id}
                 onClick={() => pickPlayer(p.id)}
