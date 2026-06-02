@@ -14,7 +14,167 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      answers: {
+        Row: {
+          assigned_to_id: string | null
+          author_id: string
+          created_at: string
+          id: string
+          question_index: number
+          room_id: string
+          round_seq: number
+          text: string
+        }
+        Insert: {
+          assigned_to_id?: string | null
+          author_id: string
+          created_at?: string
+          id?: string
+          question_index: number
+          room_id: string
+          round_seq: number
+          text: string
+        }
+        Update: {
+          assigned_to_id?: string | null
+          author_id?: string
+          created_at?: string
+          id?: string
+          question_index?: number
+          room_id?: string
+          round_seq?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answers_assigned_to_id_fkey"
+            columns: ["assigned_to_id"]
+            isOneToOne: false
+            referencedRelation: "room_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "room_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_players: {
+        Row: {
+          display_name: string
+          id: string
+          joined_at: string
+          player_number: number
+          room_id: string
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          joined_at?: string
+          player_number: number
+          room_id: string
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          joined_at?: string
+          player_number?: number
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          code: string
+          created_at: string
+          current_mediator_id: string | null
+          current_question: number
+          id: string
+          phase: string
+          reveal_player_id: string | null
+          reveal_question: number
+          round_seq: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_mediator_id?: string | null
+          current_question?: number
+          id?: string
+          phase?: string
+          reveal_player_id?: string | null
+          reveal_question?: number
+          round_seq?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_mediator_id?: string | null
+          current_question?: number
+          id?: string
+          phase?: string
+          reveal_player_id?: string | null
+          reveal_question?: number
+          round_seq?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saved_rounds: {
+        Row: {
+          id: string
+          mediator_name: string
+          payload: Json
+          room_id: string
+          round_seq: number
+          saved_at: string
+        }
+        Insert: {
+          id?: string
+          mediator_name: string
+          payload: Json
+          room_id: string
+          round_seq: number
+          saved_at?: string
+        }
+        Update: {
+          id?: string
+          mediator_name?: string
+          payload?: Json
+          room_id?: string
+          round_seq?: number
+          saved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_rounds_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
