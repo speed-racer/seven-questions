@@ -14,6 +14,8 @@ import {
   saveRound,
   setTimerEnabled,
   TIMER_DURATION_SECONDS,
+  addGhostPlayer,
+  ghostAnswerCurrent,
 } from "@/lib/game.functions";
 
 export const Route = createFileRoute("/r/$code")({
