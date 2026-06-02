@@ -12,6 +12,8 @@ import {
   setRevealPlayer,
   endRound,
   saveRound,
+  setTimerEnabled,
+  TIMER_DURATION_SECONDS,
 } from "@/lib/game.functions";
 
 export const Route = createFileRoute("/r/$code")({
@@ -34,6 +36,8 @@ type Room = {
   reveal_player_id: string | null;
   reveal_question: number;
   round_seq: number;
+  timer_enabled: boolean;
+  question_started_at: string | null;
 };
 
 type Player = {
