@@ -321,6 +321,7 @@ function AnswerPhase({
 }) {
   const submit = useServerFn(submitAnswer);
   const advance = useServerFn(advanceQuestion);
+  const ghostAnswer = useServerFn(ghostAnswerCurrent);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -404,6 +405,14 @@ function AnswerPhase({
     }
   }
 
+  async function handleGhostAnswer() {
+    try {
+      await ghostAnswer({ data: { realPlayerId: getPlayerId(), roomId: room.id } });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 flex-1">
       <div>
@@ -458,6 +467,12 @@ function AnswerPhase({
               );
             })}
           </ul>
+          <button
+            onClick={handleGhostAnswer}
+            className="rounded-lg border border-dashed border-border bg-card/50 py-2 text-xs text-muted-foreground"
+          >
+            Auto-answer for ghost players (testing)
+          </button>
           <div className="mt-auto pt-4">
             <button
               onClick={handleAdvance}
