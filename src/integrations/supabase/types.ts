@@ -109,9 +109,11 @@ export type Database = {
           current_question: number
           id: string
           phase: string
+          question_started_at: string | null
           reveal_player_id: string | null
           reveal_question: number
           round_seq: number
+          timer_enabled: boolean
           updated_at: string
         }
         Insert: {
@@ -121,9 +123,11 @@ export type Database = {
           current_question?: number
           id?: string
           phase?: string
+          question_started_at?: string | null
           reveal_player_id?: string | null
           reveal_question?: number
           round_seq?: number
+          timer_enabled?: boolean
           updated_at?: string
         }
         Update: {
@@ -133,9 +137,11 @@ export type Database = {
           current_question?: number
           id?: string
           phase?: string
+          question_started_at?: string | null
           reveal_player_id?: string | null
           reveal_question?: number
           round_seq?: number
+          timer_enabled?: boolean
           updated_at?: string
         }
         Relationships: []

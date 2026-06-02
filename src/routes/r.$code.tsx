@@ -12,6 +12,8 @@ import {
   setRevealPlayer,
   endRound,
   saveRound,
+  setTimerEnabled,
+  TIMER_DURATION_SECONDS,
 } from "@/lib/game.functions";
 
 export const Route = createFileRoute("/r/$code")({
@@ -34,6 +36,8 @@ type Room = {
   reveal_player_id: string | null;
   reveal_question: number;
   round_seq: number;
+  timer_enabled: boolean;
+  question_started_at: string | null;
 };
 
 type Player = {
@@ -177,6 +181,7 @@ function TopBar({ room }: { room: Room }) {
 // -------------------- LOBBY --------------------
 function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; isMediator: boolean }) {
   const start = useServerFn(startRound);
+  const toggleTimer = useServerFn(setTimerEnabled);
   const [busy, setBusy] = useState(false);
   const canStart = players.length >= 4;
 
@@ -188,6 +193,16 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleToggleTimer() {
+    try {
+      await toggleTimer({
+        data: { playerId: getPlayerId(), roomId: room.id, enabled: !room.timer_enabled },
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   }
 
@@ -221,6 +236,33 @@ function Lobby({ room, players, isMediator }: { room: Room; players: Player[]; i
       </div>
 
       <div className="mt-auto pt-4">
+        <div className="mb-3 flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
+          <div>
+            <div className="text-sm font-medium">Per-question timer</div>
+            <div className="text-xs text-muted-foreground">
+              {room.timer_enabled ? "2:00 per question, auto-submits" : "Off"}
+            </div>
+          </div>
+          {isMediator ? (
+            <button
+              onClick={handleToggleTimer}
+              className={`relative h-7 w-12 rounded-full transition ${
+                room.timer_enabled ? "bg-primary" : "bg-secondary"
+              }`}
+              aria-pressed={room.timer_enabled}
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-background transition-all ${
+                  room.timer_enabled ? "left-6" : "left-1"
+                }`}
+              />
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {room.timer_enabled ? "On" : "Off"}
+            </span>
+          )}
+        </div>
         {isMediator ? (
           <button
             onClick={handleStart}
@@ -257,6 +299,7 @@ function AnswerPhase({
   const advance = useServerFn(advanceQuestion);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   // reset input when question changes
   useEffect(() => {
@@ -268,6 +311,48 @@ function AnswerPhase({
   const submittedAuthorIds = new Set(answers.filter((a) => a.question_index === qIdx).map((a) => a.author_id));
   const mySubmitted = submittedAuthorIds.has(me.id);
   const allSubmitted = nonMediators.every((p) => submittedAuthorIds.has(p.id));
+
+  // ---- Timer ----
+  const timerActive = room.timer_enabled && !!room.question_started_at;
+  const startedAtMs = room.question_started_at ? new Date(room.question_started_at).getTime() : 0;
+  const deadlineMs = startedAtMs + TIMER_DURATION_SECONDS * 1000;
+  const remainingMs = Math.max(0, deadlineMs - now);
+  const remainingSec = Math.ceil(remainingMs / 1000);
+  const expired = timerActive && remainingMs <= 0;
+
+  useEffect(() => {
+    if (!timerActive) return;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [timerActive]);
+
+  // Auto-submit my answer if I'm a non-mediator who hasn't submitted when timer expires.
+  useEffect(() => {
+    if (!expired || isMediator || mySubmitted || busy) return;
+    const payload = text.trim() || "(no answer)";
+    setBusy(true);
+    submit({
+      data: { playerId: getPlayerId(), roomId: room.id, questionIndex: qIdx, text: payload.slice(0, 500) },
+    })
+      .catch((e) => {
+        // Swallow "wrong question" races silently — the round already advanced.
+        const msg = (e as Error).message ?? "";
+        if (!/wrong question|not accepting/i.test(msg)) toast.error(msg);
+      })
+      .finally(() => setBusy(false));
+  }, [expired, isMediator, mySubmitted, busy, text, submit, room.id, qIdx]);
+
+  // Mediator auto-advances shortly after timer expires once everyone has submitted.
+  useEffect(() => {
+    if (!expired || !isMediator || !allSubmitted || busy) return;
+    const t = setTimeout(() => {
+      setBusy(true);
+      advance({ data: { playerId: getPlayerId(), roomId: room.id } })
+        .catch(() => {})
+        .finally(() => setBusy(false));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [expired, isMediator, allSubmitted, busy, advance, room.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -302,6 +387,27 @@ function AnswerPhase({
           Question {qIdx + 1} of {TOTAL_QUESTIONS}
         </div>
         <h2 className="display text-3xl mt-2 leading-tight">{QUESTIONS[qIdx]}</h2>
+        {timerActive && (
+          <div className="mt-3 flex items-center gap-2">
+            <div
+              className={`font-mono text-sm tabular-nums ${
+                remainingSec <= 10 ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {Math.floor(remainingSec / 60)}:{String(remainingSec % 60).padStart(2, "0")}
+            </div>
+            <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className={`h-full transition-all ${
+                  remainingSec <= 10 ? "bg-destructive" : "bg-primary"
+                }`}
+                style={{
+                  width: `${Math.max(0, Math.min(100, (remainingMs / (TIMER_DURATION_SECONDS * 1000)) * 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {isMediator ? (
