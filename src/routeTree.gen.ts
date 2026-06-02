@@ -10,33 +10,52 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as RCodeHistoryRouteImport } from './routes/r.$code.history'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RCodeRoute = RCodeRouteImport.update({
+  id: '/r/$code',
+  path: '/r/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RCodeHistoryRoute = RCodeHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => RCodeRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/r/$code': typeof RCodeRouteWithChildren
+  '/r/$code/history': typeof RCodeHistoryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/r/$code': typeof RCodeRouteWithChildren
+  '/r/$code/history': typeof RCodeHistoryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/r/$code': typeof RCodeRouteWithChildren
+  '/r/$code/history': typeof RCodeHistoryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/r/$code' | '/r/$code/history'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/r/$code' | '/r/$code/history'
+  id: '__root__' | '/' | '/r/$code' | '/r/$code/history'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RCodeRoute: typeof RCodeRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +67,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$code': {
+      id: '/r/$code'
+      path: '/r/$code'
+      fullPath: '/r/$code'
+      preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$code/history': {
+      id: '/r/$code/history'
+      path: '/history'
+      fullPath: '/r/$code/history'
+      preLoaderRoute: typeof RCodeHistoryRouteImport
+      parentRoute: typeof RCodeRoute
+    }
   }
 }
 
+interface RCodeRouteChildren {
+  RCodeHistoryRoute: typeof RCodeHistoryRoute
+}
+
+const RCodeRouteChildren: RCodeRouteChildren = {
+  RCodeHistoryRoute: RCodeHistoryRoute,
+}
+
+const RCodeRouteWithChildren = RCodeRoute._addFileChildren(RCodeRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RCodeRoute: RCodeRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
