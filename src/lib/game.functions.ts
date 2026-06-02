@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const TOTAL_QUESTIONS = 7;
+const TIMER_SECONDS = 120;
 
 function generateRoomCode(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no confusing chars
@@ -138,11 +139,46 @@ export const startRound = createServerFn({ method: "POST" })
 
     await supabaseAdmin
       .from("rooms")
-      .update({ phase: "answer", current_question: 0, updated_at: new Date().toISOString() })
+      .update({
+        phase: "answer",
+        current_question: 0,
+        question_started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", data.roomId);
 
     return { ok: true };
   });
+
+// ---------------- Toggle per-question timer (mediator, lobby only) ----------------
+export const setTimerEnabled = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        playerId: z.string().uuid(),
+        roomId: z.string().uuid(),
+        enabled: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: room } = await supabaseAdmin
+      .from("rooms")
+      .select("phase, current_mediator_id")
+      .eq("id", data.roomId)
+      .single();
+    if (!room) throw new Error("Room not found");
+    if (room.current_mediator_id !== data.playerId) throw new Error("Only the mediator");
+    if (room.phase !== "lobby") throw new Error("Can only change timer in the lobby");
+    await supabaseAdmin
+      .from("rooms")
+      .update({ timer_enabled: data.enabled, updated_at: new Date().toISOString() })
+      .eq("id", data.roomId);
+    return { ok: true };
+  });
+
+export const TIMER_DURATION_SECONDS = TIMER_SECONDS;
 
 // ---------------- Submit answer ----------------
 export const submitAnswer = createServerFn({ method: "POST" })
@@ -249,6 +285,7 @@ export const advanceQuestion = createServerFn({ method: "POST" })
         .from("rooms")
         .update({
           current_question: room.current_question + 1,
+          question_started_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", data.roomId);
