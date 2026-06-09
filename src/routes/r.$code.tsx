@@ -407,6 +407,13 @@ function AnswerPhase({
   async function handleGhostAnswer() {
     try {
       await ghostAnswer({ data: { realPlayerId: getPlayerId(), roomId: room.id } });
+      // Dev convenience: after ghosts answer, advance to the next question.
+      // Requires the mediator (you) to have already submitted an answer.
+      if (mySubmitted) {
+        await advance({ data: { playerId: getPlayerId(), roomId: room.id } });
+      } else {
+        toast.message("Ghosts answered — submit your own answer to advance.");
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -497,7 +504,7 @@ function AnswerPhase({
             onClick={handleGhostAnswer}
             className="rounded-lg border border-dashed border-border bg-card/50 py-2 text-xs text-muted-foreground"
           >
-            Auto-answer for ghost players (testing)
+            Auto-answer ghosts & next question (testing)
           </button>
           <div className="mt-auto pt-4">
             <button
