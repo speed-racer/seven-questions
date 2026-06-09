@@ -271,6 +271,7 @@ export const ghostAnswerCurrent = createServerFn({ method: "POST" })
       .from("answers")
       .upsert(rows, { onConflict: "room_id,round_seq,question_index,author_id" });
     if (error) throw new Error(error.message);
+    await maybeAutoAdvance(data.roomId);
     return { ok: true, inserted: rows.length };
   });
 
@@ -309,6 +310,7 @@ export const submitAnswer = createServerFn({ method: "POST" })
       { onConflict: "room_id,round_seq,question_index,author_id" },
     );
     if (error) throw new Error(error.message);
+    await maybeAutoAdvance(data.roomId);
     return { ok: true };
   });
 
@@ -338,6 +340,86 @@ function assignWithoutSelf<T extends { author_id: string }>(items: T[]): T[] {
     }
   }
   return shuffled;
+}
+
+// Shared advance logic — used by mediator's explicit advance and by
+// server-side auto-advance when everyone has submitted (since RLS hides
+// answers during the answer phase, clients can't detect this themselves).
+async function maybeAutoAdvance(roomId: string): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: room } = await supabaseAdmin
+    .from("rooms")
+    .select("id, phase, current_question, round_seq")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.phase !== "answer") return;
+
+  const [{ data: players }, { data: ans }] = await Promise.all([
+    supabaseAdmin.from("room_players").select("id").eq("room_id", roomId),
+    supabaseAdmin
+      .from("answers")
+      .select("author_id")
+      .eq("room_id", roomId)
+      .eq("round_seq", room.round_seq)
+      .eq("question_index", room.current_question),
+  ]);
+  const allPlayers = players ?? [];
+  if (allPlayers.length === 0) return;
+  const answered = new Set((ans ?? []).map((a) => a.author_id));
+  if (!allPlayers.every((p) => answered.has(p.id))) return;
+
+  if (room.current_question < TOTAL_QUESTIONS - 1) {
+    await supabaseAdmin
+      .from("rooms")
+      .update({
+        current_question: room.current_question + 1,
+        question_started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", roomId)
+      .eq("phase", "answer")
+      .eq("current_question", room.current_question);
+    return;
+  }
+
+  // Final question: finalize reveal phase.
+  const { data: allAns } = await supabaseAdmin
+    .from("answers")
+    .select("id, question_index, author_id")
+    .eq("room_id", roomId)
+    .eq("round_seq", room.round_seq);
+  const byQuestion = new Map<number, { id: string; author_id: string }[]>();
+  for (const a of allAns ?? []) {
+    const arr = byQuestion.get(a.question_index) ?? [];
+    arr.push({ id: a.id, author_id: a.author_id });
+    byQuestion.set(a.question_index, arr);
+  }
+  for (const [, items] of byQuestion) {
+    const assigned = assignWithoutSelf(items);
+    for (let i = 0; i < items.length; i++) {
+      await supabaseAdmin
+        .from("answers")
+        .update({ assigned_to_id: assigned[i].author_id })
+        .eq("id", items[i].id);
+    }
+  }
+  const { data: firstPlayer } = await supabaseAdmin
+    .from("room_players")
+    .select("id, player_number")
+    .eq("room_id", roomId)
+    .order("player_number", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  await supabaseAdmin
+    .from("rooms")
+    .update({
+      phase: "reveal",
+      reveal_player_id: firstPlayer?.id ?? null,
+      reveal_question: 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", roomId)
+    .eq("phase", "answer");
 }
 
 export const advanceQuestion = createServerFn({ method: "POST" })
