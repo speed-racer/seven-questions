@@ -205,23 +205,26 @@ export const addGhostPlayer = createServerFn({ method: "POST" })
     if (!room) throw new Error("Room not found");
     if (room.phase !== "lobby") throw new Error("Can only add ghosts in the lobby");
 
-    const { data: maxRow } = await supabaseAdmin
-      .from("room_players")
-      .select("player_number")
-      .eq("room_id", data.roomId)
-      .order("player_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const nextNumber = (maxRow?.player_number ?? 0) + 1;
-    const name = data.name?.trim() || `Ghost ${nextNumber}`;
-
-    const { error } = await supabaseAdmin.from("room_players").insert({
-      room_id: data.roomId,
-      display_name: name,
-      player_number: nextNumber,
-    });
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    // Retry to handle race conditions on concurrent ghost inserts.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: maxRow } = await supabaseAdmin
+        .from("room_players")
+        .select("player_number")
+        .eq("room_id", data.roomId)
+        .order("player_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const nextNumber = (maxRow?.player_number ?? 0) + 1 + attempt;
+      const name = data.name?.trim() || `Ghost ${nextNumber}`;
+      const { error } = await supabaseAdmin.from("room_players").insert({
+        room_id: data.roomId,
+        display_name: name,
+        player_number: nextNumber,
+      });
+      if (!error) return { ok: true };
+      if (!error.message.toLowerCase().includes("duplicate")) throw new Error(error.message);
+    }
+    throw new Error("Could not allocate ghost player number");
   });
 
 // ---------------- DEV: auto-answer for all ghost (non-real) players ----------------
