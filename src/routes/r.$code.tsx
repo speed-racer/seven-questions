@@ -411,6 +411,11 @@ function AnswerPhase({
       await submit({
         data: { playerId: getPlayerId(), roomId: room.id, questionIndex: qIdx, text: text.trim() },
       });
+      // Testing mode: auto-fill ghost answers right after the mediator submits
+      // so the round progresses without waiting for ghosts.
+      if (hasGhosts) {
+        await ghostAnswer({ data: { realPlayerId: getPlayerId(), roomId: room.id } }).catch(() => {});
+      }
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
