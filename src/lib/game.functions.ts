@@ -271,6 +271,7 @@ export const ghostAnswerCurrent = createServerFn({ method: "POST" })
       .from("answers")
       .upsert(rows, { onConflict: "room_id,round_seq,question_index,author_id" });
     if (error) throw new Error(error.message);
+    await maybeAutoAdvance(data.roomId);
     return { ok: true, inserted: rows.length };
   });
 
@@ -309,6 +310,7 @@ export const submitAnswer = createServerFn({ method: "POST" })
       { onConflict: "room_id,round_seq,question_index,author_id" },
     );
     if (error) throw new Error(error.message);
+    await maybeAutoAdvance(data.roomId);
     return { ok: true };
   });
 
