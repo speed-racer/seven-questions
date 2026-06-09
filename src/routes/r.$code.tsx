@@ -336,6 +336,31 @@ function AnswerPhase({
   const mySubmitted = submittedAuthorIds.has(me.id);
   const allSubmitted = players.every((p) => submittedAuthorIds.has(p.id));
 
+  // "Testing mode" = there's at least one ghost player in the room.
+  const hasGhosts = players.some((p) => /^Ghost \d+$/i.test(p.display_name));
+
+  // Sample answers used for ghost auto-fill and mediator pre-fill in test mode.
+  const SAMPLE_ANSWERS = [
+    "A wandering bard",
+    "To the moonlit forest",
+    "Searching for stories",
+    "An old wise owl",
+    "Beware the morning fog",
+    "I shall remember always",
+    "And so the legend began",
+  ];
+
+  // Testing: prefill mediator's textarea + auto-submit ghost answers on new question.
+  useEffect(() => {
+    if (!hasGhosts) return;
+    if (isMediator && !mySubmitted) {
+      setText((prev) => prev || `Test: ${SAMPLE_ANSWERS[qIdx] ?? "..."}`);
+    }
+    // Auto-fill ghost answers for the current question (idempotent via upsert).
+    ghostAnswer({ data: { realPlayerId: getPlayerId(), roomId: room.id } }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qIdx, hasGhosts]);
+
   // ---- Timer ----
   const timerActive = room.timer_enabled && !!room.question_started_at;
   const startedAtMs = room.question_started_at ? new Date(room.question_started_at).getTime() : 0;
@@ -366,17 +391,17 @@ function AnswerPhase({
       .finally(() => setBusy(false));
   }, [expired, mySubmitted, busy, text, submit, room.id, qIdx]);
 
-  // Mediator auto-advances shortly after timer expires once everyone has submitted.
+  // Mediator auto-advances shortly after everyone has submitted (timer optional).
   useEffect(() => {
-    if (!expired || !isMediator || !allSubmitted || busy) return;
+    if (!isMediator || !allSubmitted || busy) return;
     const t = setTimeout(() => {
       setBusy(true);
       advance({ data: { playerId: getPlayerId(), roomId: room.id } })
         .catch(() => {})
         .finally(() => setBusy(false));
-    }, 1500);
+    }, 1200);
     return () => clearTimeout(t);
-  }, [expired, isMediator, allSubmitted, busy, advance, room.id]);
+  }, [isMediator, allSubmitted, busy, advance, room.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
