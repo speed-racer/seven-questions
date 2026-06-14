@@ -240,7 +240,8 @@ export const ghostAnswerCurrent = createServerFn({ method: "POST" })
       .eq("id", data.roomId)
       .single();
     if (!room) throw new Error("Room not found");
-    if (room.phase !== "answer") throw new Error("Not in answer phase");
+    // No-op if the round already advanced (e.g. mediator's submit auto-advanced).
+    if (room.phase !== "answer") return { ok: true, inserted: 0 };
 
     const { data: players } = await supabaseAdmin
       .from("room_players")
