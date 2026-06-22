@@ -624,6 +624,7 @@ function RevealPhase({
 
   const isRevealPlayer = revealPlayer?.id === me.id;
   const revealTargets = players;
+  const revealIsGhost = !!revealPlayer && /^Ghost \d+$/i.test(revealPlayer.display_name);
 
   async function pickPlayer(targetId: string) {
     setBusy(true);
@@ -700,7 +701,7 @@ function RevealPhase({
           {QUESTIONS.map((q, i) => {
             const card = myCards[i];
             const isOpen = revealed.has(i);
-            const canTap = isRevealPlayer;
+            const canTap = isRevealPlayer || revealIsGhost;
             return (
               <div key={i} className="bg-card border border-border rounded-xl p-4">
                 <div className="text-xs text-muted-foreground mb-1">Question {i + 1}</div>
